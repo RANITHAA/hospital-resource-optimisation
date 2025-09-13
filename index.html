@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hospital Resource Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+      color: #333;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .metric {
+      font-size: 18px;
+      margin: 6px 0;
+    }
+    canvas {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🏥 Hospital Resource Dashboard (Demo)</h2>
+
+  <!-- Live Metrics -->
+  <div class="card">
+    <h3>Live Metrics</h3>
+    <div class="metric">Beds Occupied: <span id="beds">-</span></div>
+    <div class="metric">Oxygen Consumption (L/h): <span id="oxygen">-</span></div>
+  </div>
+
+  <!-- Predictions Chart -->
+  <div class="card">
+    <h3>Predicted Usage (Next 24 Hours)</h3>
+    <canvas id="predChart" width="800" height="250"></canvas>
+  </div>
+
+  <script>
+    // Connect to backend
+    const socket = io("http://localhost:5000");
+
+    // DOM elements
+    const bedsEl = document.getElementById("beds");
+    const oxyEl = document.getElementById("oxygen");
+
+    // Chart.js setup
+    let labels = [];
+    let bedsData = [];
+    let oxyData = [];
+
+    const ctx = document.getElementById("predChart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Predicted Beds",
+            data: bedsData,
+            borderColor: "rgba(54, 162, 235, 1)",
+            backgroundColor: "rgba(54, 162, 235, 0.2)",
+            tension: 0.3
+          },
+          {
+            label: "Predicted Oxygen (L/h)",
+            data: oxyData,
+            borderColor: "rgba(255, 99, 132, 1)",
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // Socket events
+    socket.on("connect", () => {
+      console.log("✅ Connected to backend");
+    });
+
+    socket.on("live_update", (msg) => {
+      bedsEl.innerText = msg.beds_occupied;
+      oxyEl.innerText = msg.oxygen_lph;
+    });
+
+    socket.on("predictions", (preds) => {
+      labels.length = 0;
+      bedsData.length = 0;
+      oxyData.length = 0;
+
+      preds.forEach(p => {
+        const ts = new Date(p.timestamp);
+        labels.push(ts.getHours() + ":00");
+        bedsData.push(p.pred_beds);
+        oxyData.push(p.pred_oxygen_lph);
+      });
+
+      chart.update();
+    });
+  </script>
+</body>
+</html>
